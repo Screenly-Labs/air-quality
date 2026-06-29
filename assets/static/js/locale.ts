@@ -25,7 +25,12 @@ const buildFormatters = (): void => {
   // forecast — otherwise locales like ar-SA would render a Hijri date.
   // Names, ordering and numerals stay localized.
   const timeOpts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
-  const dateLongOpts: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric', calendar: 'gregory' }
+  // Keep each date format internally consistent in how it abbreviates: the long
+  // form spells out both the weekday and the month ("Monday 29 June"), the short
+  // form abbreviates both ("Mon 29 Jun"). Mixing a full weekday with a short
+  // month read as inconsistent (and made English differ from locales whose
+  // "short" month is already a full word).
+  const dateLongOpts: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric', calendar: 'gregory' }
   const dateShortOpts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric', calendar: 'gregory' }
   try {
     // Intl picks 12h vs 24h, localized month/day names and AM/PM per locale.
