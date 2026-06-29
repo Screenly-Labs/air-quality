@@ -1,0 +1,30 @@
+name="screenly-air-quality-app"
+main="src/index.tsx"
+compatibility_date = "2022-07-18"
+workers_dev = true
+
+[site]
+bucket = "./assets"
+# The client TypeScript source (main.ts/locale.ts) lives in the assets tree but
+# must not be served — only the bundled main.js (built by build.ts) is.
+exclude = ["**/*.ts"]
+
+[dev]
+port = 8888
+
+[env.dev]
+workers_dev = true
+
+[env.stage]
+workers_dev = false
+route = { pattern = "stage-air.srly.io", custom_domain = true }
+
+[env.stage.vars]
+ENV = "stage"
+
+[env.production]
+workers_dev = false
+route = { pattern = "air.srly.io", custom_domain = true }
+
+[env.production.vars]
+ENV = "production"
