@@ -58,6 +58,18 @@ describe('time formatting', () => {
     setLocale('JP')
     expect(timeAt(9)).toBe('22:30')
   })
+
+  it('zero-pads the hour for 24-hour locales (so the forecast strip aligns)', () => {
+    // 13:30 UTC - 4h = 09:30, - 12h = 01:30: both single-digit hours.
+    setLocale('GB')
+    expect(timeAt(-4)).toBe('09:30')
+    expect(timeAt(-12)).toBe('01:30')
+  })
+
+  it('does not zero-pad the hour for 12-hour locales', () => {
+    setLocale('US')
+    expect(timeAt(-4)).toMatch(/^9:30(\s| )?AM$/i)
+  })
 })
 
 describe('date localization', () => {

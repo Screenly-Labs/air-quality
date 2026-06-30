@@ -20,11 +20,23 @@ let timeFormatter: Intl.DateTimeFormat
 let dateFormatterLong: Intl.DateTimeFormat
 let dateFormatterShort: Intl.DateTimeFormat
 
+// Build a time formatter that lets Intl pick 12h vs 24h per locale, but pads
+// the hour to two digits when the locale uses a 24-hour clock — so the forecast
+// strip aligns (01:00 / 09:00 / 19:00). 12-hour locales keep the natural
+// unpadded "4:26 PM" rather than an odd "04:26 PM".
+const makeTimeFormatter = (loc: string): Intl.DateTimeFormat => {
+  const probe = new Intl.DateTimeFormat(loc, { hour: 'numeric', minute: '2-digit' })
+  const opts: Intl.DateTimeFormatOptions = probe.resolvedOptions().hour12
+    ? { hour: 'numeric', minute: '2-digit' }
+    : { hour: '2-digit', minute: '2-digit' }
+  return new Intl.DateTimeFormat(loc, opts)
+}
+
 const buildFormatters = (): void => {
   // Pin the Gregorian calendar so the date always matches the (Gregorian)
   // forecast — otherwise locales like ar-SA would render a Hijri date.
   // Names, ordering and numerals stay localized.
-  const timeOpts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
+  //
   // Keep each date format internally consistent in how it abbreviates: the long
   // form spells out both the weekday and the month ("Monday 29 June"), the short
   // form abbreviates both ("Mon 29 Jun"). Mixing a full weekday with a short
@@ -34,13 +46,13 @@ const buildFormatters = (): void => {
   const dateShortOpts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric', calendar: 'gregory' }
   try {
     // Intl picks 12h vs 24h, localized month/day names and AM/PM per locale.
-    timeFormatter = new Intl.DateTimeFormat(locale, timeOpts)
+    timeFormatter = makeTimeFormatter(locale)
     dateFormatterLong = new Intl.DateTimeFormat(locale, dateLongOpts)
     dateFormatterShort = new Intl.DateTimeFormat(locale, dateShortOpts)
   } catch {
     // Malformed locale string: fall back rather than break the clock.
     locale = FALLBACK_LOCALE
-    timeFormatter = new Intl.DateTimeFormat(locale, timeOpts)
+    timeFormatter = makeTimeFormatter(locale)
     dateFormatterLong = new Intl.DateTimeFormat(locale, dateLongOpts)
     dateFormatterShort = new Intl.DateTimeFormat(locale, dateShortOpts)
   }
