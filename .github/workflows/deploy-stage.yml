@@ -21,8 +21,7 @@ jobs:
           environment: stage
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          secrets: |
-            OPEN_WEATHER_API_KEY
           command: deploy --env stage
-        env:
-          OPEN_WEATHER_API_KEY: ${{ secrets.OPEN_WEATHER_API_KEY_STAGE }}
+        # OPEN_WEATHER_API_KEY is managed directly on the Worker
+        # (`wrangler secret put ... --env stage`). Worker secrets persist
+        # across deploys, so CI does not push it.

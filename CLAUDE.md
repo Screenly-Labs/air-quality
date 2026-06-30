@@ -36,6 +36,10 @@ Local dev needs `OPEN_WEATHER_API_KEY` in `.dev.vars`. Deploy is via wrangler en
 `bunx wrangler deploy --env [dev|stage|production]`. CI auto-deploys: push to `master` -> stage,
 push to `production` -> production. PRs run typecheck + lint + test.
 
+The `OPEN_WEATHER_API_KEY` secret is managed **directly on each Worker**
+(`bunx wrangler secret put OPEN_WEATHER_API_KEY --env <stage|production>`), not pushed by CI — Worker
+secrets persist across deploys. CI only needs `CF_API_TOKEN` + `CF_ACCOUNT_ID` to authenticate.
+
 ## Architecture
 
 ### Two runtimes, one repo
