@@ -161,37 +161,84 @@ export const resolveAqiStandard = (code?: string): AqiStandard =>
   code && europeanCountries.includes(code) ? 'eaqi' : 'epa'
 
 // ---- US EPA AQI ----------------------------------------------------------
-// Piecewise-linear sub-index per pollutant; the AQI is the max across them. We
-// use PM2.5 and PM10, both reported natively in ug/m3 (the gases would need a
-// ug/m3 -> ppb conversion that depends on temperature/pressure, so they are
-// shown as raw concentrations but not folded into the index). 24h breakpoints,
-// [Clow, Chigh, Ilow, Ihigh].
+// Piecewise-linear sub-index per pollutant; the AQI is the max across them.
+// PM2.5/PM10 are used in their native ug/m3; the gases (O3, NO2, SO2, CO) are
+// converted from ug/m3 to ppb/ppm so they can be folded in too — otherwise a
+// high-ozone, low-particulate day would read "Good" while the official AQI is
+// "Unhealthy". [Clow, Chigh, Ilow, Ihigh] in each pollutant's prepared unit.
 type Breakpoint = [number, number, number, number]
-const EPA_BREAKPOINTS: Record<'pm2_5' | 'pm10', Breakpoint[]> = {
-  pm2_5: [
-    [0.0, 9.0, 0, 50], [9.1, 35.4, 51, 100], [35.5, 55.4, 101, 150],
-    [55.5, 125.4, 151, 200], [125.5, 225.4, 201, 300], [225.5, 325.4, 301, 500]
-  ],
-  pm10: [
-    [0, 54, 0, 50], [55, 154, 51, 100], [155, 254, 101, 150],
-    [255, 354, 151, 200], [355, 424, 201, 300], [425, 604, 301, 500]
-  ]
+
+// ug/m3 -> ppb at the EPA reference conditions (25 C, 1 atm; molar volume
+// 24.45 L/mol). ppm = ppb / 1000.
+const ugm3ToPpb = (ugm3: number, molecularWeight: number): number => (ugm3 * 24.45) / molecularWeight
+const trunc = (c: number, decimals: number): number => {
+  const f = 10 ** decimals
+  return Math.floor(c * f) / f
 }
 
-// EPA truncates the reported concentration before lookup: PM2.5 to 0.1 ug/m3,
-// PM10 to 1 ug/m3. This also snaps a value into a band (the bands are contiguous
-// at the 0.1/1 granularity).
-const epaTruncate: Record<'pm2_5' | 'pm10', (c: number) => number> = {
-  pm2_5: (c) => Math.floor(c * 10) / 10,
-  pm10: (c) => Math.floor(c)
+interface EpaPollutant {
+  // Convert raw ug/m3 to the unit and rounding the EPA table expects (EPA
+  // truncates before lookup, which also snaps the value into a band).
+  prepare: (ugm3: number) => number
+  bp: Breakpoint[]
 }
 
-const epaSubIndex = (pollutant: 'pm2_5' | 'pm10', concentration: number | undefined): number | null => {
-  if (!(typeof concentration === 'number' && concentration >= 0)) return null
-  const c = epaTruncate[pollutant](concentration)
-  for (const [clow, chigh, ilow, ihigh] of EPA_BREAKPOINTS[pollutant]) {
-    if (c <= chigh) {
-      return Math.round(((ihigh - ilow) / (chigh - clow)) * (c - clow) + ilow)
+const EPA_POLLUTANTS: Record<string, EpaPollutant> = {
+  // PM2.5 (24h, ug/m3, truncate 0.1)
+  pm2_5: {
+    prepare: (c) => trunc(c, 1),
+    bp: [
+      [0.0, 9.0, 0, 50], [9.1, 35.4, 51, 100], [35.5, 55.4, 101, 150],
+      [55.5, 125.4, 151, 200], [125.5, 225.4, 201, 300], [225.5, 325.4, 301, 500]
+    ]
+  },
+  // PM10 (24h, ug/m3, truncate 1)
+  pm10: {
+    prepare: (c) => Math.floor(c),
+    bp: [
+      [0, 54, 0, 50], [55, 154, 51, 100], [155, 254, 101, 150],
+      [255, 354, 151, 200], [355, 424, 201, 300], [425, 604, 301, 500]
+    ]
+  },
+  // O3 (8h, ppb, truncate 1). Above ~200 ppb the EPA switches to a 1h table;
+  // we cap there, which only matters at extreme, rarely-reported ozone.
+  o3: {
+    prepare: (c) => Math.floor(ugm3ToPpb(c, 48.0)),
+    bp: [
+      [0, 54, 0, 50], [55, 70, 51, 100], [71, 85, 101, 150],
+      [86, 105, 151, 200], [106, 200, 201, 300]
+    ]
+  },
+  // NO2 (1h, ppb, truncate 1)
+  no2: {
+    prepare: (c) => Math.floor(ugm3ToPpb(c, 46.0055)),
+    bp: [
+      [0, 53, 0, 50], [54, 100, 51, 100], [101, 360, 101, 150], [361, 649, 151, 200],
+      [650, 1249, 201, 300], [1250, 1649, 301, 400], [1650, 2049, 401, 500]
+    ]
+  },
+  // SO2 (1h, ppb, truncate 1)
+  so2: {
+    prepare: (c) => Math.floor(ugm3ToPpb(c, 64.066)),
+    bp: [
+      [0, 35, 0, 50], [36, 75, 51, 100], [76, 185, 101, 150], [186, 304, 151, 200],
+      [305, 604, 201, 300], [605, 804, 301, 400], [805, 1004, 401, 500]
+    ]
+  },
+  // CO (8h, ppm, truncate 0.1)
+  co: {
+    prepare: (c) => trunc(ugm3ToPpb(c, 28.01) / 1000, 1),
+    bp: [
+      [0.0, 4.4, 0, 50], [4.5, 9.4, 51, 100], [9.5, 12.4, 101, 150], [12.5, 15.4, 151, 200],
+      [15.5, 30.4, 201, 300], [30.5, 40.4, 301, 400], [40.5, 50.4, 401, 500]
+    ]
+  }
+}
+
+const epaSubIndex = (prepared: number, bp: Breakpoint[]): number => {
+  for (const [clow, chigh, ilow, ihigh] of bp) {
+    if (prepared <= chigh) {
+      return Math.round(((ihigh - ilow) / (chigh - clow)) * (prepared - clow) + ilow)
     }
   }
   // Above the top breakpoint: cap at the maximum AQI.
@@ -208,12 +255,15 @@ const epaCategory = (aqi: number): { label: string; severity: number } => {
 }
 
 const computeEpaAqi = (components: Components): AqiResult | null => {
-  const subs = (['pm2_5', 'pm10'] as const)
-    .map((key) => ({ key, idx: epaSubIndex(key, components[key]) }))
-    .filter((s): s is { key: 'pm2_5' | 'pm10'; idx: number } => s.idx !== null)
-  if (subs.length === 0) return null
+  let worst: { key: string; idx: number } | null = null
+  for (const [key, pollutant] of Object.entries(EPA_POLLUTANTS)) {
+    const raw = components[key]
+    if (!(typeof raw === 'number' && raw >= 0)) continue
+    const idx = epaSubIndex(pollutant.prepare(raw), pollutant.bp)
+    if (!worst || idx > worst.idx) worst = { key, idx }
+  }
+  if (!worst) return null
 
-  const worst = subs.reduce((a, b) => (b.idx > a.idx ? b : a))
   const { label, severity } = epaCategory(worst.idx)
   return {
     standard: 'epa',
@@ -271,4 +321,21 @@ const computeEaqi = (components: Components): AqiResult | null => {
 export const computeAqi = (components: Components | null | undefined, standard: AqiStandard): AqiResult | null => {
   if (!components) return null
   return standard === 'eaqi' ? computeEaqi(components) : computeEpaAqi(components)
+}
+
+// Last-resort reading from OpenWeatherMap's own 1-5 index (main.aqi), used only
+// when no raw component is usable so the sign shows a category rather than going
+// blank. OWM: 1 Good, 2 Fair, 3 Moderate, 4 Poor, 5 Very Poor.
+const OWM_LABELS = ['Good', 'Fair', 'Moderate', 'Poor', 'Very Poor']
+export const owmFallback = (owmAqi: number | undefined): AqiResult | null => {
+  if (!(typeof owmAqi === 'number' && owmAqi >= 1 && owmAqi <= 5)) return null
+  return {
+    standard: 'eaqi',
+    standardLabel: 'Air Quality Index',
+    value: owmAqi,
+    severity: owmAqi,
+    label: OWM_LABELS[owmAqi - 1],
+    dominant: '',
+    advice: AQI_ADVICE[owmAqi - 1]
+  }
 }

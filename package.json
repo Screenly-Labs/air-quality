@@ -13,7 +13,7 @@
     "sync-fonts": "bun run sync-fonts.ts",
     "dev": "bun run build.ts --client && wrangler dev",
     "build": "bun run build.ts",
-    "deploy": "wrangler deploy --env=dev"
+    "deploy": "bun run build && wrangler deploy --env=dev"
   },
   "license": "AGPL-3.0-only",
   "dependencies": {

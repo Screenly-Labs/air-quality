@@ -62,8 +62,11 @@ app.get('/', async (c) => {
     url.searchParams.set('lat', coordinates.lat)
     url.searchParams.set('lng', coordinates.lng)
 
+    // 302 (temporary), not 301: the resolved location depends on GeoIP / device
+    // headers, which change when a sign is relocated or reassigned. A cached 301
+    // would pin the screen to its first-seen coordinates forever.
     return new Response(null, {
-      status: 301,
+      status: 302,
       headers: { Location: url.toString() }
     })
   }

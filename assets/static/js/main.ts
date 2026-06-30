@@ -5,6 +5,7 @@ import {
   formatDate,
   resolveAqiStandard,
   computeAqi,
+  owmFallback,
   type AqiResult,
   type AqiStandard,
   type Components
@@ -45,6 +46,11 @@ interface AirData {
   const STRIP_STEP_HOURS = 3
   const STRIP_COUNT = 6
 
+  // Refresh cadence: every 2 hours on success, but retry soon after a failure
+  // (transient upstream / boot offline) so the sign isn't blank for 2 hours.
+  const REFRESH_MS = 120 * 60 * 1000
+  const RETRY_MS = 60 * 1000
+
   /**
    * Utility Functions
    */
@@ -79,6 +85,12 @@ interface AirData {
   const updateLocation = (name?: string): void => {
     updateContent('city', name || '')
   }
+
+  // Rough timezone offset (seconds) from longitude: 15 degrees per hour. Not
+  // DST-aware, but a far better fallback than UTC when the metadata call (which
+  // carries the real offset) failed.
+  const approxTzOffsetFromLng = (lon?: number): number =>
+    typeof lon === 'number' ? Math.round(lon / 15) * 3600 : 0
 
   // The reactive accent + background are driven entirely by the AQI severity
   // (1-6) via body[data-aqi]; the CSS interpolates the accent on change.
@@ -116,6 +128,11 @@ interface AirData {
     return itemIndex
   }
 
+  // Compute the index for a forecast item, falling back to OWM's own 1-5 index
+  // if no raw component is usable, so a slot is never silently empty.
+  const itemAqi = (item: AirItem): AqiResult | null =>
+    computeAqi(item.components, aqiStandard) ?? owmFallback(item.main?.aqi)
+
   const renderStrip = (list: AirItem[], currentIndex: number): void => {
     const container = document.querySelector('#aqi-item-list')
     const dummyNode = document.querySelector<HTMLElement>('.dummy-node')
@@ -123,12 +140,16 @@ interface AirData {
 
     const frag = document.createDocumentFragment()
 
-    for (let i = 0; i < STRIP_COUNT; i++) {
+    // Keep scanning forward until STRIP_COUNT columns are filled (or the list
+    // runs out), so a data-less slot is skipped rather than collapsing the strip
+    // to fewer columns.
+    let added = 0
+    for (let i = 0; added < STRIP_COUNT; i++) {
       const idx = currentIndex + i * STRIP_STEP_HOURS
       if (idx >= list.length) break
 
       const item = list[idx]
-      const aqi = computeAqi(item.components, aqiStandard)
+      const aqi = itemAqi(item)
       if (!aqi) continue
 
       const node = dummyNode.cloneNode(true) as HTMLElement
@@ -137,9 +158,10 @@ interface AirData {
       const aqiEl = node.querySelector('.item-aqi')
       const timeEl = node.querySelector('.item-time')
       if (aqiEl) aqiEl.textContent = String(aqi.value)
-      if (timeEl) timeEl.textContent = i === 0 ? 'Now' : formatTime(getTimeByOffset(tz, item.dt))
+      if (timeEl) timeEl.textContent = idx === currentIndex ? 'Now' : formatTime(getTimeByOffset(tz, item.dt))
 
       frag.appendChild(node)
+      added++
     }
 
     container.replaceChildren(frag)
@@ -151,7 +173,7 @@ interface AirData {
 
     const currentIndex = findCurrentItem(list)
     const currentItem = list[currentIndex]
-    const aqi = computeAqi(currentItem.components, aqiStandard)
+    const aqi = itemAqi(currentItem)
 
     if (aqi) {
       updateCurrentAqi(aqi)
@@ -175,8 +197,12 @@ interface AirData {
     updateLocation(data.city?.name)
 
     // The air-pollution feed has no timezone; the metadata call supplies it.
-    // Fall back to UTC so the clock still renders if metadata was unavailable.
-    initDateTime(typeof data.city?.timezone === 'number' ? data.city.timezone : 0)
+    // If metadata was unavailable, approximate the offset from longitude
+    // (15 deg per hour) so the clock is roughly local instead of UTC.
+    const tzOffset = typeof data.city?.timezone === 'number'
+      ? data.city.timezone
+      : approxTzOffsetFromLng(data.coord?.lon)
+    initDateTime(tzOffset)
 
     updateAir(data.list)
 
@@ -192,23 +218,20 @@ interface AirData {
    */
   const fetchAir = async (): Promise<void> => {
     clearTimeout(refreshTimer)
+    let ok = false
     try {
       const { lat, lng } = getLocation()
       const response = await fetch(`/api/air?lat=${lat}&lng=${lng}`)
-      const isCacheHit = response.headers.get('cf-cache-status') === 'HIT'
       const data = (await response.json()) as AirData
-      updateData(data)
-      generateAnalyticsEvent('cache_status', {
-        app_name: APP_NAME,
-        cached: isCacheHit,
-        lat,
-        lng
-      })
+      // /api/air returns { error: true } with a 4xx/5xx on upstream failure.
+      ok = response.ok && Array.isArray(data?.list)
+      if (ok) updateData(data)
     } catch (e) {
       console.log(e)
     }
-    // Reschedule the next refresh so updates keep coming every 2 hours.
-    refreshTimer = setTimeout(fetchAir, 120 * 60 * 1000)
+    // Full interval on success; a short retry after a failure so a transient
+    // outage doesn't leave the sign blank until the next 2-hour tick.
+    refreshTimer = setTimeout(fetchAir, ok ? REFRESH_MS : RETRY_MS)
   }
 
   /**

@@ -53,14 +53,14 @@ afterEach(() => {
 describe('Routing', () => {
   it('redirects a location-less request to a default location', async () => {
     const res = await app.request('http://localhost/')
-    expect(res.status).toBe(301)
+    expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toContain('lat=')
     expect(res.headers.get('Location')).toContain('lng=')
   })
 
   it('redirects when only one coordinate is provided', async () => {
     const res = await app.request('http://localhost/?lat=51.5')
-    expect(res.status).toBe(301)
+    expect(res.status).toBe(302)
     const location = res.headers.get('Location') ?? ''
     expect(location).toContain('lat=51.5')
     expect(location).toContain('lng=')
@@ -77,7 +77,7 @@ describe('Routing', () => {
 
   it('falls back to Cloudflare GeoIP when no query params or Screenly headers', async () => {
     const res = await app.request(withCf('http://localhost/', { latitude: '40.7128', longitude: '-74.0060' }))
-    expect(res.status).toBe(301)
+    expect(res.status).toBe(302)
     const location = res.headers.get('Location') ?? ''
     // Trimmed to 2 decimals; this is New York, not the SF default.
     expect(location).toContain('lat=40.71')
@@ -90,7 +90,7 @@ describe('Routing', () => {
       { latitude: '40.7128', longitude: '-74.0060' },
       { 'x-screenly-lat': '35.68', 'x-screenly-lng': '139.69' }
     ))
-    expect(res.status).toBe(301)
+    expect(res.status).toBe(302)
     const location = res.headers.get('Location') ?? ''
     // Tokyo from the device headers wins over the New York IP.
     expect(location).toContain('lat=35.68')
@@ -99,7 +99,7 @@ describe('Routing', () => {
 
   it('falls back to the default location when GeoIP is unavailable', async () => {
     const res = await app.request('http://localhost/')
-    expect(res.status).toBe(301)
+    expect(res.status).toBe(302)
     const location = res.headers.get('Location') ?? ''
     expect(location).toContain('lat=37.77')
     expect(location).toContain('lng=-122.43')

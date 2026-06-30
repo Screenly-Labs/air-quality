@@ -42,7 +42,12 @@ interface WeatherMetaResponse {
 
 air.get('/', async (c) => {
   try {
-    const { lat = defaultLocation.lat, lng = defaultLocation.lng } = c.req.query()
+    // Fall back to the default location for both missing AND empty params: a
+    // `?lat=&lng=` request yields empty strings (not undefined), so destructuring
+    // defaults alone would forward `lat=&lon=` upstream and 502 instead.
+    const q = c.req.query()
+    const lat = q.lat || defaultLocation.lat
+    const lng = q.lng || defaultLocation.lng
     const appid = c.env.OPEN_WEATHER_API_KEY
 
     // URLSearchParams escapes the values, so a crafted lat/lng can't smuggle a

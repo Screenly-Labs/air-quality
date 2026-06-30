@@ -59,6 +59,25 @@ describe('Air route', () => {
     expect(url.pathname).toContain('/air_pollution/forecast')
   })
 
+  it('falls back to the default location for empty lat/lng params', async () => {
+    let pollutionUrl = ''
+    globalThis.fetch = (async (url) => {
+      if (isPollution(url)) {
+        pollutionUrl = String(url)
+        return json(POLLUTION)
+      }
+      return json(META)
+    }) as typeof fetch
+
+    // Empty strings (not undefined): destructuring defaults wouldn't fire.
+    const res = await call('http://localhost/?lat=&lng=')
+
+    expect(res.status).toBe(200)
+    const url = new URL(pollutionUrl)
+    expect(url.searchParams.get('lat')).toBe('37.77')
+    expect(url.searchParams.get('lon')).toBe('-122.43')
+  })
+
   it('still returns the index when metadata is unavailable (city null)', async () => {
     globalThis.fetch = (async (url) => (isPollution(url) ? json(POLLUTION) : json({}, 500))) as typeof fetch
 

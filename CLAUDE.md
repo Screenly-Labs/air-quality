@@ -34,7 +34,7 @@ server to the LAN instead of localhost: `bunx wrangler dev --ip 0.0.0.0`.
 
 Local dev needs `OPEN_WEATHER_API_KEY` in `.dev.vars`. Deploy is via wrangler envs:
 `bunx wrangler deploy --env [dev|stage|production]`. CI auto-deploys: push to `master` -> stage,
-push to `production` -> production. PRs run lint + test.
+push to `production` -> production. PRs run typecheck + lint + test.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ The SSR output is a static HTML shell with empty placeholders (`#city`, `#aqi-va
 
 ### Request flow (`src/index.tsx`)
 
-- `GET /` redirects (301) to a canonical `?lat=&lng=` URL when either coord is missing. Resolution
+- `GET /` redirects (302) to a canonical `?lat=&lng=` URL when either coord is missing. Resolution
   order: query params > Screenly asset-metadata headers (`x-screenly-lat/lng`) > Cloudflare GeoIP
   (`request.cf`) > `defaultLocation`. See `src/constants.ts`.
 - With both coords present, the HTML is server-rendered and stored in the edge page cache for 12h.
@@ -65,7 +65,8 @@ is `{ dt, main: { aqi }, components: { co, no, no2, o3, so2, pm2_5, pm10, nh3 } 
 current-weather endpoint (`/data/2.5/weather`) for `name`/`country`/`timezone` and merges both into
 `{ city: { name, country, timezone }, coord, list }` — the same `{ city, list }` shape `main.ts`
 consumes. The air-pollution call is required (its failure is a 502/504); the metadata call is
-best-effort (on failure `city` is null and the headline still renders, just without the place/clock).
+best-effort (on failure `city` is null and the headline still renders, just without the place name; the
+clock then approximates its offset from longitude rather than showing UTC).
 
 `main.aqi` is OpenWeatherMap's own 1-5 index and is intentionally **not** used for the headline.
 Instead the index is recomputed from the raw `components` so it can be geo-specific (see below).
@@ -79,11 +80,13 @@ locale/temp split). `resolveAqiStandard(country)` picks the scale by location:
 - European countries -> `eaqi` (European Air Quality Index, band 1-6)
 - everything else -> `epa` (default)
 
-`computeAqi(components, standard)` returns `{ value, severity (1-6), label, dominant }`. EPA uses the
-piecewise-linear sub-index of PM2.5 and PM10 (both native µg/m³, so no unit conversion) and takes the
-max. EAQI takes the worst band across PM2.5, PM10, NO2, O3 and SO2. Both map to a common
-`severity` 1-6 that drives the CSS accent/background via `body[data-aqi]`. Add testable logic to
-`locale.ts`, not `main.ts` — `test/locale.test.ts` imports it directly.
+`computeAqi(components, standard)` returns `{ value, severity (1-6), label, dominant, advice }`. EPA
+takes the max piecewise-linear sub-index across PM2.5, PM10, O3, NO2, SO2 and CO; PM is used in native
+µg/m³, the gases are converted µg/m³→ppb/ppm (25 °C, 1 atm) so a high-ozone, low-particulate day reads
+"Unhealthy" rather than "Good". EAQI takes the worst band across PM2.5, PM10, NO2, O3 and SO2. Both map
+to a common `severity` 1-6 that drives the CSS accent/background via `body[data-aqi]`. `owmFallback()`
+turns OpenWeatherMap's own 1-5 index into a result so the readout is never blank when no raw component
+is usable. Add testable logic to `locale.ts`, not `main.ts` — `test/locale.test.ts` imports it directly.
 
 ### The client build: main.ts/locale.ts -> served main.js (important)
 

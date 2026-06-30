@@ -12,7 +12,8 @@ import {
   formatDate,
   getTimeByOffset,
   resolveAqiStandard,
-  computeAqi
+  computeAqi,
+  owmFallback
 } from '../assets/static/js/locale'
 
 // Saturday 2026-06-20 13:30:00 UTC, as the unix seconds main.ts works with.
@@ -133,6 +134,33 @@ describe('computeAqi — US EPA scale', () => {
   it('caps above the top breakpoint at 500 / Hazardous', () => {
     const aqi = computeAqi({ pm2_5: 5000, pm10: 0 }, 'epa')
     expect(aqi).toMatchObject({ value: 500, severity: 6, label: 'Hazardous' })
+  })
+
+  it('folds in gases so a high-ozone, low-particulate day is not "Good"', () => {
+    // 180 ug/m3 ozone ~ 91 ppb (8h) -> AQI 164 "Unhealthy"; PM2.5 of 5 alone
+    // would read ~11 "Good". The gas must drive the index.
+    const aqi = computeAqi({ pm2_5: 5, o3: 180 }, 'epa')
+    expect(aqi).toMatchObject({ value: 164, severity: 4, label: 'Unhealthy', dominant: 'ozone' })
+  })
+
+  it('computes a gas sub-index for NO2', () => {
+    const aqi = computeAqi({ no2: 300 }, 'epa')
+    expect(aqi).toMatchObject({ severity: 3, dominant: 'nitrogen dioxide' })
+    expect(aqi?.value).toBeGreaterThan(100)
+  })
+})
+
+describe('owmFallback (last-resort reading)', () => {
+  it('maps OpenWeatherMap 1-5 to a category so the sign is never blank', () => {
+    expect(owmFallback(1)).toMatchObject({ value: 1, severity: 1, label: 'Good' })
+    expect(owmFallback(3)).toMatchObject({ value: 3, severity: 3, label: 'Moderate' })
+    expect(owmFallback(5)).toMatchObject({ value: 5, severity: 5, label: 'Very Poor' })
+  })
+
+  it('returns null for a missing / out-of-range index', () => {
+    expect(owmFallback(undefined)).toBeNull()
+    expect(owmFallback(0)).toBeNull()
+    expect(owmFallback(6)).toBeNull()
   })
 })
 
