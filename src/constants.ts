@@ -16,9 +16,10 @@ export const defaultLocation = {
 
 type DeployEnv = 'stage' | 'production'
 
-// Analytics IDs per environment. This is a new app, so it ships without Sentry
-// or Google Analytics wired up; fill these in (per env) to enable them. Empty
-// values mean Layout renders no Sentry/GA script tags at all.
+// Analytics IDs per environment. Sentry is not wired up yet; fill these in (per
+// env) to enable it. Empty values mean Layout renders no Sentry/GA script tags
+// at all. GA4 is live on production only; stage stays empty so test/preview
+// traffic is not counted.
 export const sentryIds: Record<DeployEnv, string> = {
   stage: '',
   production: ''
@@ -26,5 +27,5 @@ export const sentryIds: Record<DeployEnv, string> = {
 
 export const gaIds: Record<DeployEnv, string> = {
   stage: '',
-  production: ''
+  production: 'G-30B61M6PLF'
 }
