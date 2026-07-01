@@ -121,10 +121,16 @@ describe('Routing', () => {
   })
 
   it('omits Sentry / GA script tags when no analytics IDs are configured', () => {
-    // This app ships with empty sentryIds/gaIds; Layout must render no tags.
-    const body = jsx(App, { env: 'production', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
+    // stage ships with empty sentryIds/gaIds; Layout must render no tags.
+    const body = jsx(App, { env: 'stage', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
     expect(body).not.toContain('sentry-cdn.com')
     expect(body).not.toContain('googletagmanager.com')
+  })
+
+  it('renders the GA4 gtag snippet with the production measurement ID', () => {
+    const body = jsx(App, { env: 'production', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
+    expect(body).toContain('https://www.googletagmanager.com/gtag/js?id=G-30B61M6PLF')
+    expect(body).toContain("gtag('config', 'G-30B61M6PLF')")
   })
 })
 
