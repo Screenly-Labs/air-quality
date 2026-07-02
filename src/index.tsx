@@ -6,6 +6,7 @@ import manifest from '__STATIC_CONTENT_MANIFEST'
 import App from './components/App'
 import air from './routes/air'
 import { locationHeaders, locationQueryParams, defaultLocation } from './constants'
+import { manifest as appManifest } from './manifest'
 import { trimCoordinates } from './utils'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -40,6 +41,16 @@ app.use('/static/*', async (c, next) => {
     : 'public, max-age=300')
 })
 app.use('/static/*', serveStatic({ root: './', manifest }))
+
+// The self-describing app manifest, served at a stable well-known path. The app
+// store and signage players fetch this cross-origin, so it must carry
+// `Access-Control-Allow-Origin: *` and stay anonymously reachable. See
+// src/manifest.ts and ../../app-store/docs/app-manifest.md.
+app.get('/.well-known/signage-app.json', (c) => {
+  c.header('Access-Control-Allow-Origin', '*')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.json(appManifest)
+})
 
 app.get('/', async (c) => {
   const qLat = c.req.query(locationQueryParams.lat)

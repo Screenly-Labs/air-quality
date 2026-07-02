@@ -175,6 +175,26 @@ describe('Page caching (/ route)', () => {
   })
 })
 
+describe('App manifest (/.well-known/signage-app.json)', () => {
+  it('serves the manifest as JSON, cross-origin, anonymously', async () => {
+    const res = await app.request('http://localhost/.well-known/signage-app.json')
+    expect(res.status).toBe(200)
+    // The store and players fetch this cross-origin, so CORS must be open.
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(res.headers.get('Content-Type')).toContain('application/json')
+
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.manifestVersion).toBe('1')
+    expect(body.id).toBe('air-quality')
+    // The launch template explodes the location object into ?lat=&lng=, the
+    // exact params the worker resolves on the / route.
+    expect((body.launch as { baseUrl: string; template: string }).template).toBe('{?location*}')
+    expect((body.settings as { properties: Record<string, unknown> }).properties).toHaveProperty(
+      'location'
+    )
+  })
+})
+
 describe('Static asset caching (/static/*)', () => {
   it('caches versioned assets immutably and unversioned ones briefly', async () => {
     // Versioned URL (?v=...) is content-addressed via the query, so it is safe
