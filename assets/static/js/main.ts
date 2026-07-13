@@ -1,6 +1,7 @@
 // Side-effect import: installs the replaceChildren shim for the older-browser
-// degraded mode. Must stay first so the shim is in place before any render.
-import './polyfills'
+// degraded mode (shared across all apps). Must stay first so the shim is in
+// place before any render.
+import '@screenly-labs/signage-kit/polyfills'
 import {
   setLocale,
   getTimeByOffset,
