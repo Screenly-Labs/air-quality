@@ -17,48 +17,45 @@
 // working-tree CSS stays unminified for editing).
 
 import { Glob } from 'bun'
-import browserslist from 'browserslist'
-import { build as esbuild } from 'esbuild'
-import { browserslistToTargets, transform as lightningcss } from 'lightningcss'
+import { bundleJs, processCss } from '@screenly-labs/signage-kit/build'
 import { run as syncFonts } from './sync-fonts'
 
 const clientOnly = process.argv.includes('--client')
 
-// The `browserslist` field in package.json is the CSS support floor: Lightning
-// CSS down-levels the stylesheet to it. The JS is lowered separately by esbuild to
-// a fixed ES2017 syntax floor (kept at/below the browserslist minimum); esbuild
-// can't read browserslist, so keep the two in sync if you change the floor. See
-// the degraded-mode notes in Layout.tsx / main.css.
-const cssTargets = browserslistToTargets(browserslist())
+// The support floor, JS/CSS down-level recipe and the degraded-mode kill-switch
+// all live in @screenly-labs/signage-kit now (shared across the signage apps).
+// bundleJs lowers the client TS to the ES2017 floor; processCss down-levels +
+// minifies the stylesheet and (includeDegraded) prepends the html.legacy
+// kill-switch. See the degraded-mode notes in Layout.tsx / main.css.
 
 // Vendor the Bun-managed webfonts into ./assets first.
 await syncFonts()
 
 // ---- Client JS bundle: main.ts -> main.js --------------------------------
-// esbuild bundles main.ts (inlining ./locale + the polyfills shim), lowers modern
-// syntax (?., ??, spread) to the ES2017 floor so old engines can parse it, and
-// emits an IIFE so the output stays a self-contained self-executing classic
-// script loadable from a plain <script> (same guarantee as before).
+// bundleJs bundles main.ts (inlining ./locale + the shared polyfills shim),
+// lowers modern syntax (?., ??, spread) to the ES2017 floor so old engines can
+// parse it, and emits an IIFE so the output stays a self-contained self-executing
+// classic script loadable from a plain <script> (same guarantee as before).
 try {
-  await esbuild({
-    entryPoints: ['assets/static/js/main.ts'],
-    bundle: true,
-    minify: true,
-    format: 'iife',
-    target: ['es2017'],
-    outfile: 'assets/static/js/main.js'
-  })
+  await bundleJs('assets/static/js/main.ts', 'assets/static/js/main.js')
 } catch (error) {
   console.error('✗ Failed to build assets/static/js/main.ts')
   console.error(error)
   process.exit(1)
 }
-console.log('✓ JS: assets/static/js/main.js (esbuild, iife, es2017)')
+console.log('✓ JS: assets/static/js/main.js (iife, es2017)')
 
 // ---- CSS: down-level + minify in place (skipped for --client) ------------
-// Lightning CSS down-levels the authored CSS to the browserslist floor (lowers
-// color-mix(), rgb() slash, etc. and adds prefixes) and minifies, writing back
-// in place. url(/static/...) refs are left untouched.
+// processCss down-levels the authored CSS to the shared floor (lowers
+// color-mix(), rgb() slash, etc. and adds prefixes), minifies, and prepends the
+// shared html.legacy kill-switch (includeDegraded), writing back in place.
+// url(/static/...) refs are left untouched.
+//
+// NOTE: `bun run dev` builds with --client, which skips this CSS step, so it
+// serves the *authored* main.css WITHOUT the html.legacy kill-switch (that
+// switch is only injected here by processCss({ includeDegraded: true })). To
+// test degraded/legacy mode locally, build without --client (e.g. `bun run
+// build`) so the kill-switch is present in the served CSS.
 if (!clientOnly) {
   const cssEntries: string[] = []
   for await (const path of new Glob('assets/static/styles/*.css').scan('.')) {
@@ -67,11 +64,9 @@ if (!clientOnly) {
 
   for (const path of cssEntries) {
     try {
-      const { code } = lightningcss({
-        filename: path,
-        code: await Bun.file(path).bytes(),
-        minify: true,
-        targets: cssTargets
+      const code = await processCss(await Bun.file(path).text(), {
+        includeDegraded: true,
+        filename: path
       })
       await Bun.write(path, code)
     } catch (error) {
