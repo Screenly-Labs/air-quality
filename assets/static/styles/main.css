@@ -6,36 +6,9 @@
    body[data-aqi] (1 = best, 6 = worst), set by main.js from the computed index.
    ========================================================================= */
 
-/* ---- Webfonts: self-hosted, vendored from Bun-managed @fontsource --------
-   (see sync-fonts.js). Variable "standard" axis = optical-size + weight. */
-/* The vendored woff2 files are the Latin subset only. Declaring unicode-range
-   scopes them to Latin glyphs, so non-Latin scripts in localized dates/city
-   names (e.g. zh, ar, ja) fall back to the system font instead of rendering as
-   tofu boxes. */
-@font-face {
-  font-family: "Fraunces";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/static/fonts/fraunces-latin-standard-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Fraunces";
-  font-style: italic;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/static/fonts/fraunces-latin-standard-italic.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Hanken Grotesk";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/static/fonts/hanken-grotesk-latin-wght-normal.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
+/* Webfonts (@font-face) and the standardized footer badge (.brand) come from
+   @screenly-labs/signage-kit — build.ts prepends styles/fonts.css + styles/brand.css
+   before down-leveling. This file keeps the app's own tokens, reset, and styles. */
 
 /* Registered so the severity-reactive accent can interpolate on change. */
 @property --accent {
@@ -132,7 +105,7 @@ body[data-aqi="6"] {
 }
 
 /* =========================================================================
-   Layout shell — grid: masthead / hero+CTA / forecast rail
+   Layout shell — grid: masthead / hero / forecast rail
    ========================================================================= */
 .content {
   position: relative;
@@ -219,7 +192,7 @@ body[data-aqi="6"] {
 }
 
 /* =========================================================================
-   Mid row — hero (current AQI) + rotating Screenly CTA
+   Mid row — hero (current AQI)
    ========================================================================= */
 .midrow {
   display: flex;
@@ -322,57 +295,6 @@ body[data-aqi="6"] {
   content: "·";
   margin-inline-end: 0.45em;
   opacity: 0.55;
-}
-
-/* ---- Rotating Screenly CTA (shown only on non-Screenly devices) ----------
-   Non-interactive: a digital sign has no cursor/touch, so the screenly.io
-   mark is the destination a viewer reads and types in themselves. */
-.cta-wrap {
-  flex: none;
-  text-align: right;
-}
-
-.upgrade-banner {
-  display: none;
-}
-
-.upgrade-banner.visible {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.4rem;
-}
-
-.cta-msg {
-  font-size: 0.84rem;
-  letter-spacing: 0.015em;
-  color: var(--ink-dim);
-  white-space: nowrap;
-  transition: opacity 0.45s ease, transform 0.45s ease;
-}
-
-.cta-msg.is-out {
-  opacity: 0;
-  transform: translateY(-0.25em);
-}
-
-.cta-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6em;
-}
-
-.cta-logo {
-  block-size: 1.05rem;
-  inline-size: auto;
-  filter: drop-shadow(0 0.05em 0.4em rgb(0 0 0 / 0.45));
-}
-
-.cta-url {
-  font-size: max(12px, 0.66rem);
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--ink-dim);
 }
 
 /* =========================================================================
@@ -547,7 +469,7 @@ body[data-aqi="6"] {
     gap: 0.5rem;
   }
 
-  /* Stack hero + CTA, gravitate to the bottom, both left-aligned. */
+  /* Gravitate the hero to the bottom, left-aligned. */
   .midrow {
     flex-direction: column;
     align-items: flex-start;
@@ -558,15 +480,6 @@ body[data-aqi="6"] {
   .hero {
     align-self: flex-start;
     max-inline-size: none;
-  }
-
-  .cta-wrap {
-    text-align: left;
-    max-inline-size: none;
-  }
-
-  .upgrade-banner.visible {
-    align-items: flex-start;
   }
 
   #aqi-value {
@@ -599,10 +512,6 @@ body[data-aqi="6"] {
 
   .playing .anim {
     animation: none;
-  }
-
-  .cta-msg {
-    transition: none;
   }
 
   /* Drop the decorative drifting particulate rather than freezing it. The

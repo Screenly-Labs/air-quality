@@ -19,16 +19,17 @@ const Footer = (props: FooterProps) => html`
       <div class="detail anim" id="detail" style="--d: 500ms"></div>
     </section>
 
-    <aside class="cta-wrap anim" style="--d: 520ms">
-      <div class="upgrade-banner">
-        <span class="cta-msg" id="cta-msg">Powerful, secure, simple digital signage</span>
-        <span class="cta-lockup">
-          <img class="cta-logo" src="/static/images/screenly-logo.svg?v=${props.v}" alt="Screenly" width="178" height="40" />
-          <span class="cta-url">screenly.io</span>
-        </span>
-      </div>
-    </aside>
   </div>
+
+  <a
+    class="brand"
+    href="https://www.screenly.io"
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Screenly - opens in a new tab"
+  >
+    <img src="/static/images/screenly-logo.svg?v=${props.v}" alt="Screenly" />
+  </a>
 
   <footer id="aqi-item-list"></footer>
 
