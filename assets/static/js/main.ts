@@ -2,6 +2,7 @@
 // degraded mode (shared across all apps). Must stay first so the shim is in
 // place before any render.
 import '@screenly-labs/signage-kit/polyfills'
+import { removeScreenlyBranding } from '@screenly-labs/signage-kit/branding'
 import {
   setLocale,
   getTimeByOffset,
@@ -40,11 +41,8 @@ interface AirData {
   let clockTimer: ReturnType<typeof setTimeout>
   let airTimer: ReturnType<typeof setTimeout>
   let refreshTimer: ReturnType<typeof setTimeout>
-  let ctaTimer: ReturnType<typeof setInterval>
   let tz = 0
   let aqiStandard: AqiStandard = 'epa'
-
-  const APP_NAME = 'Screenly Air Quality App'
 
   // Forecast strip: a slot every few hours, looking ahead from now.
   const STRIP_STEP_HOURS = 3
@@ -58,10 +56,6 @@ interface AirData {
   /**
    * Utility Functions
    */
-  const generateAnalyticsEvent = (name: string, payload: Record<string, unknown>): void => {
-    typeof gtag !== 'undefined' && gtag('event', name, payload)
-  }
-
   const updateContent = (id: string, text: string | number): void => {
     const el = document.querySelector(`#${id}`)
     if (el) el.textContent = String(text)
@@ -209,12 +203,6 @@ interface AirData {
     initDateTime(tzOffset)
 
     updateAir(data.list)
-
-    generateAnalyticsEvent('location', {
-      app_name: APP_NAME,
-      city: data.city?.name,
-      country
-    })
   }
 
   /**
@@ -238,64 +226,12 @@ interface AirData {
     refreshTimer = setTimeout(fetchAir, ok ? REFRESH_MS : RETRY_MS)
   }
 
-  /**
-   * Rotating Screenly call-to-action.
-   *
-   * The banner is only shown on non-Screenly devices (a browser tab or a rival
-   * signage system), so the copy pitches the viewer to switch to Screenly. It
-   * is non-interactive (a digital sign has no cursor/touch) and surfaces
-   * screenly.io as the destination a viewer types in themselves.
-   */
-  const ctaMessages = [
-    'Powerful, secure, simple digital signage',
-    'Secure by default: SOC 2, zero-trust',
-    'Manage every screen from anywhere',
-    'Run Screenly on hardware you already own',
-    'Powering 10,000+ screens worldwide'
-  ]
-  let ctaIndex = 0
-
-  const rotateCta = (): void => {
-    const msg = document.querySelector('#cta-msg')
-    if (!msg) return
-
-    ctaIndex = (ctaIndex + 1) % ctaMessages.length
-    const next = ctaMessages[ctaIndex]
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
-
-    if (reduceMotion) {
-      msg.textContent = next
-      return
-    }
-
-    msg.classList.add('is-out')
-    setTimeout(() => {
-      msg.textContent = next
-      msg.classList.remove('is-out')
-    }, 450)
-  }
-
-  const setBanner = (): void => {
-    const banner = document.querySelector('.upgrade-banner')
-    const { userAgent } = navigator
-    const isScreenlyDevice = userAgent.includes('screenly-viewer')
-
-    if (banner && !isScreenlyDevice) {
-      banner.classList.add('visible')
-      clearInterval(ctaTimer)
-      ctaTimer = setInterval(rotateCta, 5000)
-    }
-
-    generateAnalyticsEvent('device', {
-      app_name: APP_NAME,
-      screenly_device: isScreenlyDevice
-    })
-  }
-
   const init = (): void => {
     // fetchAir() reschedules itself every 2 hours.
     fetchAir()
-    setBanner()
+    // On a real Screenly viewer the shared chrome strips the Screenly footer
+    // badge; on any other browser it stays as the app's attribution.
+    removeScreenlyBranding()
   }
 
   // Only auto-run in a real browser; under a test runner there is no document.

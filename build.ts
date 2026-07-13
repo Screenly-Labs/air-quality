@@ -16,11 +16,20 @@
 // CSS step (used by `bun run dev`, which only needs the JS bundle, so the
 // working-tree CSS stays unminified for editing).
 
+import { readFileSync } from 'node:fs'
 import { Glob } from 'bun'
 import { bundleJs, processCss } from '@screenly-labs/signage-kit/build'
 import { run as syncFonts } from './sync-fonts'
 
 const clientOnly = process.argv.includes('--client')
+
+// Shared chrome CSS from @screenly-labs/signage-kit — the canonical @font-face set
+// and the standardized fixed footer badge. Prepended to this app's raw main.css at
+// build time (a raw-CSS Worker can't resolve a bare `@import`), so the shared rules
+// land before the app's, which override where they overlap.
+const sharedCss = ['fonts.css', 'brand.css']
+  .map((f) => readFileSync(Bun.resolveSync(`@screenly-labs/signage-kit/styles/${f}`, import.meta.dir), 'utf8'))
+  .join('\n')
 
 // The support floor, JS/CSS down-level recipe and the degraded-mode kill-switch
 // all live in @screenly-labs/signage-kit now (shared across the signage apps).
@@ -64,7 +73,7 @@ if (!clientOnly) {
 
   for (const path of cssEntries) {
     try {
-      const code = await processCss(await Bun.file(path).text(), {
+      const code = await processCss(`${sharedCss}\n${await Bun.file(path).text()}`, {
         includeDegraded: true,
         filename: path
       })
