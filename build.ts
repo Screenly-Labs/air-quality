@@ -50,6 +50,12 @@ console.log('✓ JS: assets/static/js/main.js (iife, es2017)')
 // color-mix(), rgb() slash, etc. and adds prefixes), minifies, and prepends the
 // shared html.legacy kill-switch (includeDegraded), writing back in place.
 // url(/static/...) refs are left untouched.
+//
+// NOTE: `bun run dev` builds with --client, which skips this CSS step, so it
+// serves the *authored* main.css WITHOUT the html.legacy kill-switch (that
+// switch is only injected here by processCss({ includeDegraded: true })). To
+// test degraded/legacy mode locally, build without --client (e.g. `bun run
+// build`) so the kill-switch is present in the served CSS.
 if (!clientOnly) {
   const cssEntries: string[] = []
   for await (const path of new Glob('assets/static/styles/*.css').scan('.')) {
