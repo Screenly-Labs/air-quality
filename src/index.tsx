@@ -1,3 +1,7 @@
+import {
+  PLAYER_PROFILE_PATH,
+  playerProfileResponse
+} from '@screenly-labs/signage-kit/analytics-server'
 import { Hono } from 'hono'
 import { cache } from 'hono/cache'
 import { logger } from 'hono/logger'
@@ -111,5 +115,13 @@ app.get('/', async (c) => {
 
 app.get('/api/air/*', cache({ cacheName: 'default', cacheControl: 's-maxage=10800' }))
 app.route('/api/air', air)
+
+// Player profile for the telemetry. Deliberately outside any cache middleware and served
+// no-store by playerProfileResponse: this is the one response that must be computed per
+// request. Only a request carries X-Requested-With, and for the Android WebView players
+// (yodeck, pisignage, xogo, iadea and friends) that header is the only thing that names
+// the vendor. If this response were ever cached, every screen would inherit whichever
+// player happened to warm it and the census would silently collapse onto one vendor.
+app.get(PLAYER_PROFILE_PATH, (c) => playerProfileResponse(c.req.raw))
 
 export default app
