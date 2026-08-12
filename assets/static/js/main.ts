@@ -2,7 +2,10 @@
 // degraded mode (shared across all apps). Must stay first so the shim is in
 // place before any render.
 import '@screenly-labs/signage-kit/polyfills'
+import { trackPlayer } from '@screenly-labs/signage-kit/analytics'
+import { PLAYER_PROFILE_PATH } from '@screenly-labs/signage-kit/analytics-server'
 import { removeScreenlyBranding } from '@screenly-labs/signage-kit/branding'
+import { detectPlayer } from '@screenly-labs/signage-kit/profiler'
 import {
   setLocale,
   getTimeByOffset,
@@ -226,12 +229,30 @@ interface AirData {
     refreshTimer = setTimeout(fetchAir, ok ? REFRESH_MS : RETRY_MS)
   }
 
+  // Report which player is showing this. Prefers the Worker's profile over the browser's:
+  // only a request carries X-Requested-With, the one signal that names an Android WebView
+  // vendor, and the endpoint is no-store so it describes THIS screen rather than whichever
+  // one missed the page cache. Falls back to the browser profile when the fetch fails,
+  // which on an unattended screen is normal rather than an error: the player still
+  // reports, just less specifically, and player_sources records which signals were used.
+  const reportPlayer = async (): Promise<void> => {
+    let profile = detectPlayer()
+    try {
+      const response = await fetch(PLAYER_PROFILE_PATH, { cache: 'no-store' })
+      if (response.ok) profile = await response.json()
+    } catch {
+      // Keep the browser-built profile.
+    }
+    trackPlayer(profile, { app: 'air-quality' })
+  }
+
   const init = (): void => {
     // fetchAir() reschedules itself every 2 hours.
     fetchAir()
     // On a real Screenly viewer the shared chrome strips the Screenly footer
     // badge; on any other browser it stays as the app's attribution.
     removeScreenlyBranding()
+    reportPlayer()
   }
 
   // Only auto-run in a real browser; under a test runner there is no document.
