@@ -130,7 +130,24 @@ describe('Routing', () => {
   it('renders the GA4 gtag snippet with the production measurement ID', () => {
     const body = jsx(App, { env: 'production', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
     expect(body).toContain('https://www.googletagmanager.com/gtag/js?id=G-30B61M6PLF')
-    expect(body).toContain("gtag('config', 'G-30B61M6PLF')")
+    expect(body).toContain("gtag('config', 'G-30B61M6PLF'")
+  })
+
+  it('pins the GA4 client_id to the device rather than the _ga cookie', () => {
+    // GA4's own client_id churns on these players, so it does not identify a screen. The kit
+    // bootstrap fetches the no-store profile route and configures with the device-derived id.
+    const body = jsx(App, { env: 'production', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
+    expect(body).toContain("fetch('/api/player'")
+    expect(body).toContain('cfg.client_id = clientId')
+    // Must not be baked into this HTML: it is edge-cached with no per-screen component, so a
+    // rendered id would be handed to every screen that hit the cache afterwards.
+    expect(body).not.toMatch(/client_id['"]?\s*[:=]\s*['"][0-9]+\.[0-9]+['"]/)
+  })
+
+  it('still configures if the profile fetch fails, so a screen never goes silent', () => {
+    const body = jsx(App, { env: 'production', lat: '51.5', lng: '-0.12', v: 'testver' }).toString()
+    expect(body).toContain('setTimeout')
+    expect(body).toContain('catch')
   })
 })
 
