@@ -1,4 +1,6 @@
 import { html, raw } from 'hono/html'
+import { analyticsBootstrap } from '@screenly-labs/signage-kit/analytics-bootstrap'
+import { PLAYER_PROFILE_PATH } from '@screenly-labs/signage-kit/analytics-server'
 import { GATE } from '@screenly-labs/signage-kit/gate'
 import type { Child } from 'hono/jsx'
 
@@ -17,17 +19,16 @@ const sentryScript = (id?: string) =>
     ? html`<script src="https://js.sentry-cdn.com/${id}.min.js" crossorigin="anonymous"></script>`
     : ''
 
+// The bootstrap comes from the kit so `client_id` is pinned to the Screenly device id, making
+// one screen one GA4 user. GA4's own client_id lives in the _ga cookie, and these players
+// largely boot with fresh storage, so it churns and does not identify a screen. The kit fetches
+// the no-store profile route and configures with the derived id, falling back to GA4's default
+// on any failure or timeout, so a screen never goes silent.
 const gaScript = (id?: string) =>
   id
     ? html`
       <script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
-      <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-
-        gtag('config', '${id}');
-      </script>`
+      ${raw(analyticsBootstrap({ gaId: id, profilePath: PLAYER_PROFILE_PATH }))}`
     : ''
 
 const Layout = (props: LayoutProps) => html`<!DOCTYPE html>
