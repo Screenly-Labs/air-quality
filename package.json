@@ -23,8 +23,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
     "@cloudflare/workers-types": "^5.20260904.1",
-    "browserslist": "^4.28.8",
-    "bun-types": "^1.4.0",
+    "browserslist": "^4.28.9",
+    "bun-types": "^1.4.1",
     "esbuild": "^0.28.2",
     "lightningcss": "^1.33.0",
     "typescript": "^7.0.2",
